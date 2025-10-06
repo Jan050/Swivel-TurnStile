@@ -52,8 +52,6 @@ The system logs entry/exit events into a **SQL Server database** and provides an
 
 ---
 
-## 🖥️ How to Run
-
 ### 🧩 Requirements
 - Visual Studio (VB.NET)
 - SQL Server or SQL Server Express
@@ -69,7 +67,4 @@ The system logs entry/exit events into a **SQL Server database** and provides an
 4. **Run the VB.NET server app** — it will listen for RFID data from the ESP32.  
 5. Scan an RFID card — watch as the gate unlocks and the event logs appear on screen!
 
----
-
-## 📂 Project Structure
 
