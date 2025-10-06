@@ -172,6 +172,14 @@
             "PrerequisitesLocation" = "2:1"
             "Url" = "8:"
             "ComponentsUrl" = "8:"
+                "Items"
+                {
+                    "{EDC2488A-8267-493A-A98E-7D9C3B36CDF3}:.NETFramework,Version=v4.7.2"
+                    {
+                    "Name" = "8:Microsoft .NET Framework 4.7.2 (x86 and x64)"
+                    "ProductCode" = "8:.NETFramework,Version=v4.7.2"
+                    }
+                }
             }
         }
     }
@@ -622,20 +630,6 @@
             "Folder" = "8:_E049FD3537AB4FFDB1D638A82F716935"
             "WorkingFolder" = "8:_1EBFB3C6D8224DA4B39C441ED4E90B78"
             "Icon" = "8:_DA0FA1755792413CB58110EE072940EB"
-            "Feature" = "8:"
-            }
-            "{970C0BB2-C7D0-45D7-ABFA-7EC378858BC0}:_865B0A7EB505407E929B25CF11487907"
-            {
-            "Name" = "8:SMS"
-            "Arguments" = "8:"
-            "Description" = "8:"
-            "ShowCmd" = "3:1"
-            "IconIndex" = "3:0"
-            "Transitive" = "11:FALSE"
-            "Target" = "8:_9B84B5F616B442878D63671EDD4D167A"
-            "Folder" = "8:_E049FD3537AB4FFDB1D638A82F716935"
-            "WorkingFolder" = "8:_1EBFB3C6D8224DA4B39C441ED4E90B78"
-            "Icon" = "8:_1CC19187B56746CAB3DC1197677158F5"
             "Feature" = "8:"
             }
         }

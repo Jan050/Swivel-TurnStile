@@ -27,8 +27,8 @@ Partial Class FormConnection
         Me.tbUDIGate2IN = New System.Windows.Forms.TextBox()
         Me.tbUDIGate2OUT = New System.Windows.Forms.TextBox()
         Me.lbServerStatus = New System.Windows.Forms.Label()
-        Me.lblPort7070 = New System.Windows.Forms.Label()
-        Me.lbConnectedClients7070 = New System.Windows.Forms.Label()
+        Me.lblPort10001 = New System.Windows.Forms.Label()
+        Me.lbConnectedClients10001 = New System.Windows.Forms.Label()
         Me.GroupBox1 = New System.Windows.Forms.GroupBox()
         Me.Label1 = New System.Windows.Forms.Label()
         Me.Label2 = New System.Windows.Forms.Label()
@@ -37,10 +37,10 @@ Partial Class FormConnection
         Me.Label4 = New System.Windows.Forms.Label()
         Me.btnStopServer = New System.Windows.Forms.Button()
         Me.btnStartServer = New System.Windows.Forms.Button()
-        Me.lblPort8080 = New System.Windows.Forms.Label()
-        Me.lbConnectedClients8080 = New System.Windows.Forms.Label()
-        Me.lstClients7070 = New System.Windows.Forms.ListBox()
-        Me.lstClients8080 = New System.Windows.Forms.ListBox()
+        Me.lblPort10002 = New System.Windows.Forms.Label()
+        Me.lbConnectedClients10002 = New System.Windows.Forms.Label()
+        Me.lstClients10001 = New System.Windows.Forms.ListBox()
+        Me.lstClients10002 = New System.Windows.Forms.ListBox()
         Me.Label5 = New System.Windows.Forms.Label()
         Me.Label6 = New System.Windows.Forms.Label()
         Me.GroupBox1.SuspendLayout()
@@ -97,25 +97,25 @@ Partial Class FormConnection
         Me.lbServerStatus.TabIndex = 4
         Me.lbServerStatus.Text = "Server Status:"
         '
-        'lblPort7070
+        'lblPort10001
         '
-        Me.lblPort7070.AutoSize = True
-        Me.lblPort7070.Font = New System.Drawing.Font("Microsoft Sans Serif", 9.75!, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
-        Me.lblPort7070.Location = New System.Drawing.Point(12, 34)
-        Me.lblPort7070.Name = "lblPort7070"
-        Me.lblPort7070.Size = New System.Drawing.Size(65, 16)
-        Me.lblPort7070.TabIndex = 5
-        Me.lblPort7070.Text = "Port: 7070"
+        Me.lblPort10001.AutoSize = True
+        Me.lblPort10001.Font = New System.Drawing.Font("Microsoft Sans Serif", 9.75!, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
+        Me.lblPort10001.Location = New System.Drawing.Point(12, 34)
+        Me.lblPort10001.Name = "lblPort10001"
+        Me.lblPort10001.Size = New System.Drawing.Size(72, 16)
+        Me.lblPort10001.TabIndex = 5
+        Me.lblPort10001.Text = "Port: 10001"
         '
-        'lbConnectedClients7070
+        'lbConnectedClients10001
         '
-        Me.lbConnectedClients7070.AutoSize = True
-        Me.lbConnectedClients7070.Font = New System.Drawing.Font("Microsoft Sans Serif", 9.75!, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
-        Me.lbConnectedClients7070.Location = New System.Drawing.Point(12, 53)
-        Me.lbConnectedClients7070.Name = "lbConnectedClients7070"
-        Me.lbConnectedClients7070.Size = New System.Drawing.Size(161, 16)
-        Me.lbConnectedClients7070.TabIndex = 6
-        Me.lbConnectedClients7070.Text = "Connected Clients (7070): 0"
+        Me.lbConnectedClients10001.AutoSize = True
+        Me.lbConnectedClients10001.Font = New System.Drawing.Font("Microsoft Sans Serif", 9.75!, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
+        Me.lbConnectedClients10001.Location = New System.Drawing.Point(12, 53)
+        Me.lbConnectedClients10001.Name = "lbConnectedClients10001"
+        Me.lbConnectedClients10001.Size = New System.Drawing.Size(174, 16)
+        Me.lbConnectedClients10001.TabIndex = 6
+        Me.lbConnectedClients10001.Text = "Connected Clients (10001): 0"
         '
         'GroupBox1
         '
@@ -128,7 +128,7 @@ Partial Class FormConnection
         Me.GroupBox1.Size = New System.Drawing.Size(294, 80)
         Me.GroupBox1.TabIndex = 7
         Me.GroupBox1.TabStop = False
-        Me.GroupBox1.Text = "Gate 1 (Port 7070)"
+        Me.GroupBox1.Text = "Gate 1 (Port 10001)"
         '
         'Label1
         '
@@ -159,7 +159,7 @@ Partial Class FormConnection
         Me.GroupBox2.Size = New System.Drawing.Size(294, 80)
         Me.GroupBox2.TabIndex = 8
         Me.GroupBox2.TabStop = False
-        Me.GroupBox2.Text = "Gate 2 (Port 8080)"
+        Me.GroupBox2.Text = "Gate 2 (Port 10002)"
         '
         'Label3
         '
@@ -197,59 +197,59 @@ Partial Class FormConnection
         Me.btnStartServer.Text = "Start Server"
         Me.btnStartServer.UseVisualStyleBackColor = True
         '
-        'lblPort8080
+        'lblPort10002
         '
-        Me.lblPort8080.AutoSize = True
-        Me.lblPort8080.Font = New System.Drawing.Font("Microsoft Sans Serif", 9.75!, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
-        Me.lblPort8080.Location = New System.Drawing.Point(83, 34)
-        Me.lblPort8080.Name = "lblPort8080"
-        Me.lblPort8080.Size = New System.Drawing.Size(65, 16)
-        Me.lblPort8080.TabIndex = 11
-        Me.lblPort8080.Text = "Port: 8080"
+        Me.lblPort10002.AutoSize = True
+        Me.lblPort10002.Font = New System.Drawing.Font("Microsoft Sans Serif", 9.75!, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
+        Me.lblPort10002.Location = New System.Drawing.Point(83, 34)
+        Me.lblPort10002.Name = "lblPort10002"
+        Me.lblPort10002.Size = New System.Drawing.Size(72, 16)
+        Me.lblPort10002.TabIndex = 11
+        Me.lblPort10002.Text = "Port: 10002"
         '
-        'lbConnectedClients8080
+        'lbConnectedClients10002
         '
-        Me.lbConnectedClients8080.AutoSize = True
-        Me.lbConnectedClients8080.Font = New System.Drawing.Font("Microsoft Sans Serif", 9.75!, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
-        Me.lbConnectedClients8080.Location = New System.Drawing.Point(12, 69)
-        Me.lbConnectedClients8080.Name = "lbConnectedClients8080"
-        Me.lbConnectedClients8080.Size = New System.Drawing.Size(161, 16)
-        Me.lbConnectedClients8080.TabIndex = 12
-        Me.lbConnectedClients8080.Text = "Connected Clients (8080): 0"
+        Me.lbConnectedClients10002.AutoSize = True
+        Me.lbConnectedClients10002.Font = New System.Drawing.Font("Microsoft Sans Serif", 9.75!, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
+        Me.lbConnectedClients10002.Location = New System.Drawing.Point(12, 69)
+        Me.lbConnectedClients10002.Name = "lbConnectedClients10002"
+        Me.lbConnectedClients10002.Size = New System.Drawing.Size(174, 16)
+        Me.lbConnectedClients10002.TabIndex = 12
+        Me.lbConnectedClients10002.Text = "Connected Clients (10002): 0"
         '
-        'lstClients7070
+        'lstClients10001
         '
-        Me.lstClients7070.FormattingEnabled = True
-        Me.lstClients7070.Location = New System.Drawing.Point(15, 280)
-        Me.lstClients7070.Name = "lstClients7070"
-        Me.lstClients7070.Size = New System.Drawing.Size(294, 82)
-        Me.lstClients7070.TabIndex = 13
+        Me.lstClients10001.FormattingEnabled = True
+        Me.lstClients10001.Location = New System.Drawing.Point(15, 280)
+        Me.lstClients10001.Name = "lstClients10001"
+        Me.lstClients10001.Size = New System.Drawing.Size(294, 82)
+        Me.lstClients10001.TabIndex = 13
         '
-        'lstClients8080
+        'lstClients10002
         '
-        Me.lstClients8080.FormattingEnabled = True
-        Me.lstClients8080.Location = New System.Drawing.Point(15, 390)
-        Me.lstClients8080.Name = "lstClients8080"
-        Me.lstClients8080.Size = New System.Drawing.Size(294, 82)
-        Me.lstClients8080.TabIndex = 14
+        Me.lstClients10002.FormattingEnabled = True
+        Me.lstClients10002.Location = New System.Drawing.Point(15, 390)
+        Me.lstClients10002.Name = "lstClients10002"
+        Me.lstClients10002.Size = New System.Drawing.Size(294, 82)
+        Me.lstClients10002.TabIndex = 14
         '
         'Label5
         '
         Me.Label5.AutoSize = True
         Me.Label5.Location = New System.Drawing.Point(12, 264)
         Me.Label5.Name = "Label5"
-        Me.Label5.Size = New System.Drawing.Size(96, 13)
+        Me.Label5.Size = New System.Drawing.Size(102, 13)
         Me.Label5.TabIndex = 15
-        Me.Label5.Text = "Clients (Port 7070):"
+        Me.Label5.Text = "Clients (Port 10001):"
         '
         'Label6
         '
         Me.Label6.AutoSize = True
         Me.Label6.Location = New System.Drawing.Point(12, 374)
         Me.Label6.Name = "Label6"
-        Me.Label6.Size = New System.Drawing.Size(96, 13)
+        Me.Label6.Size = New System.Drawing.Size(102, 13)
         Me.Label6.TabIndex = 16
-        Me.Label6.Text = "Clients (Port 8080):"
+        Me.Label6.Text = "Clients (Port 10002):"
         '
         'FormConnection
         '
@@ -258,16 +258,16 @@ Partial Class FormConnection
         Me.ClientSize = New System.Drawing.Size(328, 485)
         Me.Controls.Add(Me.Label6)
         Me.Controls.Add(Me.Label5)
-        Me.Controls.Add(Me.lstClients8080)
-        Me.Controls.Add(Me.lstClients7070)
-        Me.Controls.Add(Me.lbConnectedClients8080)
-        Me.Controls.Add(Me.lblPort8080)
+        Me.Controls.Add(Me.lstClients10002)
+        Me.Controls.Add(Me.lstClients10001)
+        Me.Controls.Add(Me.lbConnectedClients10002)
+        Me.Controls.Add(Me.lblPort10002)
         Me.Controls.Add(Me.btnStartServer)
         Me.Controls.Add(Me.btnStopServer)
         Me.Controls.Add(Me.GroupBox2)
         Me.Controls.Add(Me.GroupBox1)
-        Me.Controls.Add(Me.lbConnectedClients7070)
-        Me.Controls.Add(Me.lblPort7070)
+        Me.Controls.Add(Me.lbConnectedClients10001)
+        Me.Controls.Add(Me.lblPort10001)
         Me.Controls.Add(Me.lbServerStatus)
         Me.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle
         Me.MaximizeBox = False
@@ -288,8 +288,8 @@ Partial Class FormConnection
     Friend WithEvents tbUDIGate2IN As TextBox
     Friend WithEvents tbUDIGate2OUT As TextBox
     Friend WithEvents lbServerStatus As Label
-    Friend WithEvents lblPort7070 As Label
-    Friend WithEvents lbConnectedClients7070 As Label
+    Friend WithEvents lblPort10001 As Label
+    Friend WithEvents lbConnectedClients10001 As Label
     Friend WithEvents GroupBox1 As GroupBox
     Friend WithEvents Label1 As Label
     Friend WithEvents Label2 As Label
@@ -298,10 +298,10 @@ Partial Class FormConnection
     Friend WithEvents Label4 As Label
     Friend WithEvents btnStopServer As Button
     Friend WithEvents btnStartServer As Button
-    Friend WithEvents lblPort8080 As Label
-    Friend WithEvents lbConnectedClients8080 As Label
-    Friend WithEvents lstClients7070 As ListBox
-    Friend WithEvents lstClients8080 As ListBox
+    Friend WithEvents lblPort10002 As Label
+    Friend WithEvents lbConnectedClients10002 As Label
+    Friend WithEvents lstClients10001 As ListBox
+    Friend WithEvents lstClients10002 As ListBox
     Friend WithEvents Label5 As Label
     Friend WithEvents Label6 As Label
 End Class

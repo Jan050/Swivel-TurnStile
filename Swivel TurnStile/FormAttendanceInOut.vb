@@ -1,12 +1,18 @@
 ﻿Imports System.Data.SqlClient
 Imports System.Configuration
 Imports System.Media
+Imports System.IO
 Imports System.Threading.Tasks
 
 Public Class FormAttendanceInOut
     Public Property ParentAttendance As FormAttendance
     Private WithEvents _formConn As FormConnection
     Public Event AttendanceApproved(gateNumber As Integer, student As FormConnection.StudentRecord)
+    Private ReadOnly BUSY_FLAG_FILE As String = "database_busy.txt"
+
+    ' Properties to track current mode
+    Public Property CurrentGate1Mode As String = "IN/OUT"
+    Public Property CurrentGate2Mode As String = "IN/OUT"
 
     Private lastScanTime As New Dictionary(Of String, DateTime)
     Private cooldownMs As Integer = 3000
@@ -25,27 +31,56 @@ Public Class FormAttendanceInOut
     End Sub
 
     ' Event handlers for each gate
+
     Private Sub HandleGate1(sender As Object, student As FormConnection.StudentRecord)
-        HandleGateScan(student, tbStudname, TbStudId1, Type1, PictureBox1, LBInOut.Text, "IN", 1)
+        ' Gate 1 - Reader 1 (IN)
+        ' Only process if current mode allows IN scans
+        If CurrentGate1Mode = "IN" OrElse CurrentGate1Mode = "IN/OUT" Then
+            HandleGateScan(student, tbStudname, TbStudId1, Type1, PictureBox1, "IN", 1)
+        Else
+            ' Mode is OUT only, ignore IN scan
+            Debug.WriteLine("Gate 1 IN scan ignored - current mode: " & CurrentGate1Mode)
+        End If
     End Sub
 
     Private Sub HandleGate2(sender As Object, student As FormConnection.StudentRecord)
-        HandleGateScan(student, tbStudname, TbStudId1, Type1, PictureBox1, LBInOut.Text, "OUT", 2)
+        ' Gate 1 - Reader 2 (OUT)
+        ' Only process if current mode allows OUT scans
+        If CurrentGate1Mode = "OUT" OrElse CurrentGate1Mode = "IN/OUT" Then
+            HandleGateScan(student, tbStudname, TbStudId1, Type1, PictureBox1, "OUT", 2)
+        Else
+            ' Mode is IN only, ignore OUT scan
+            Debug.WriteLine("Gate 1 OUT scan ignored - current mode: " & CurrentGate1Mode)
+        End If
     End Sub
 
     Private Sub HandleGate3(sender As Object, student As FormConnection.StudentRecord)
-        HandleGateScan(student, tbstudname2, tbstudId2, Type2, PictureBox2, LBOutIn.Text, "IN", 3)
+        ' Gate 2 - Reader 3 (IN)
+        ' Only process if current mode allows IN scans
+        If CurrentGate2Mode = "IN" OrElse CurrentGate2Mode = "IN/OUT" Then
+            HandleGateScan(student, tbstudname2, tbstudId2, Type2, PictureBox2, "IN", 3)
+        Else
+            ' Mode is OUT only, ignore IN scan
+            Debug.WriteLine("Gate 2 IN scan ignored - current mode: " & CurrentGate2Mode)
+        End If
     End Sub
 
     Private Sub HandleGate4(sender As Object, student As FormConnection.StudentRecord)
-        HandleGateScan(student, tbstudname2, tbstudId2, Type2, PictureBox2, LBOutIn.Text, "OUT", 4)
+        ' Gate 2 - Reader 4 (OUT)
+        ' Only process if current mode allows OUT scans
+        If CurrentGate2Mode = "OUT" OrElse CurrentGate2Mode = "IN/OUT" Then
+            HandleGateScan(student, tbstudname2, tbstudId2, Type2, PictureBox2, "OUT", 4)
+        Else
+            ' Mode is IN only, ignore OUT scan
+            Debug.WriteLine("Gate 2 OUT scan ignored - current mode: " & CurrentGate2Mode)
+        End If
     End Sub
 
     Private Sub HandleGateScan(student As FormConnection.StudentRecord, tbName As TextBox, tbId As TextBox,
-                             tbType As TextBox, picBox As PictureBox, modeLabel As String,
-                             defaultInOut As String, gateNumber As Integer)
+                         tbType As TextBox, picBox As PictureBox, inout As String, gateNumber As Integer)
+        ' ✅ SINGLE Invoke check
         If Me.InvokeRequired Then
-            Me.Invoke(Sub() HandleGateScan(student, tbName, tbId, tbType, picBox, modeLabel, defaultInOut, gateNumber))
+            Me.Invoke(Sub() HandleGateScan(student, tbName, tbId, tbType, picBox, inout, gateNumber))
             Return
         End If
 
@@ -55,48 +90,102 @@ Public Class FormAttendanceInOut
         End If
         lastScanTime(student.RFID) = DateTime.Now
 
-        ' Update UI
+        ' ✅ INSTANT UI UPDATE
         tbId.Text = student.StudId
         tbName.Text = student.FullName
         tbType.Text = student.Type
+
+        ' ✅ SMART IMAGE HANDLING BASED ON YOUR SIZES
         If student.Picture IsNot Nothing Then
-            ' Create a high-quality copy
-            Dim originalBitmap = DirectCast(student.Picture, Bitmap)
-            Dim highQualityBitmap = New Bitmap(originalBitmap.Width, originalBitmap.Height)
+            ' For your sizes: 320x378 and similar are PERFECT for instant display
+            If student.Picture.Width <= 500 AndAlso student.Picture.Height <= 500 Then
+                ' ✅ SMALL/MEDIUM IMAGES (320x378, etc.) - INSTANT DISPLAY
+                picBox.Image = student.Picture
+            Else
+                ' ✅ LARGE IMAGES (>500x500) - INSTANT DISPLAY + BACKGROUND OPTIMIZATION
+                picBox.Image = student.Picture ' Show immediately
 
-            Using g = Graphics.FromImage(highQualityBitmap)
-                g.InterpolationMode = Drawing2D.InterpolationMode.HighQualityBicubic
-                g.SmoothingMode = Drawing2D.SmoothingMode.HighQuality
-                g.PixelOffsetMode = Drawing2D.PixelOffsetMode.HighQuality
-                g.CompositingQuality = Drawing2D.CompositingQuality.HighQuality
-                g.DrawImage(originalBitmap, 0, 0, originalBitmap.Width, originalBitmap.Height)
-            End Using
-
-            picBox.Image = highQualityBitmap
+                ' Optimize large images in background
+                Task.Run(Sub() OptimizeLargeImageInBackground(student.Picture, picBox, student.RFID))
+            End If
         Else
             picBox.Image = Nothing
         End If
 
-        ' Set size mode AFTER setting the image
         picBox.SizeMode = PictureBoxSizeMode.Zoom
-        'picBox.Image = If(student.Picture?.Clone(), Nothing)
-        'picBox.SizeMode = PictureBoxSizeMode.StretchImage
-
-        ' Sound feedback
         SystemSounds.Asterisk.Play()
 
-        Dim inout As String = If(modeLabel = "IN/OUT", defaultInOut, modeLabel)
-
-        ' Save attendance
+        ' Save attendance in background
         Task.Run(Async Function()
-                     Await SaveAttendanceAsync(student.StudId, student.FullName, inout, lbRemarks2.Text, student.Type, student.ContactN, "0")
+                     Await SaveAttendanceAsync(student.StudId, student.FullName, inout, lbRemarks2.Text, student.Type, student.ContactN, "0", student.Program)
                      RaiseEvent AttendanceApproved(gateNumber, student)
                  End Function)
     End Sub
 
+    ' ✅ Background optimization ONLY for truly large images
+    Private Sub OptimizeLargeImageInBackground(originalImage As Image, picBox As PictureBox, rfid As String)
+        Try
+            ' Only optimize if image is significantly large
+            If originalImage.Width <= 800 AndAlso originalImage.Height <= 800 Then
+                Return ' Already reasonable size
+            End If
+
+            ' Resize to max 500px (good balance of quality/speed)
+            Dim maxSize As Integer = 500
+            Dim optimizedImage As Bitmap
+
+            If originalImage.Width > originalImage.Height Then
+                ' Landscape - width is larger
+                optimizedImage = ResizeImage(originalImage, maxSize, CInt(originalImage.Height * maxSize / originalImage.Width))
+            Else
+                ' Portrait or square - height is larger
+                optimizedImage = ResizeImage(originalImage, CInt(originalImage.Width * maxSize / originalImage.Height), maxSize)
+            End If
+
+            ' Update UI if still showing the same student
+            Me.Invoke(Sub()
+                          If picBox.Image Is originalImage Then
+                              picBox.Image = optimizedImage
+                              Debug.WriteLine($"Optimized large image: {originalImage.Width}x{originalImage.Height} → {optimizedImage.Width}x{optimizedImage.Height}")
+                          Else
+                              optimizedImage.Dispose() ' Clean up if not used
+                          End If
+                      End Sub)
+        Catch ex As Exception
+            Debug.WriteLine($"Background image optimization failed: {ex.Message}")
+        End Try
+    End Sub
+
+    ' ✅ Fast image resizing
+    Private Function ResizeImage(originalImage As Image, newWidth As Integer, newHeight As Integer) As Bitmap
+        Dim newImage = New Bitmap(newWidth, newHeight)
+        Using g = Graphics.FromImage(newImage)
+            ' Use balanced quality settings
+            g.InterpolationMode = Drawing2D.InterpolationMode.Bilinear ' Good balance
+            g.SmoothingMode = Drawing2D.SmoothingMode.AntiAlias ' Smooth but fast
+            g.DrawImage(originalImage, 0, 0, newWidth, newHeight)
+        End Using
+        Return newImage
+    End Function
+
+    ' Method to update modes from parent form
+    Public Sub UpdateModes(gate1Mode As String, gate2Mode As String)
+        CurrentGate1Mode = gate1Mode
+        CurrentGate2Mode = gate2Mode
+
+        ' Update display labels
+        LBInOut.Text = gate1Mode
+        LBOutIn.Text = gate2Mode
+
+        Debug.WriteLine($"Modes updated - Gate1: {gate1Mode}, Gate2: {gate2Mode}")
+    End Sub
+
     Private Async Function SaveAttendanceAsync(studId As String, studName As String, inout As String,
-                                             remarks As String, type As String, contactN As String,
-                                             processed As String) As Task
+                                         remarks As String, type As String, contactN As String,
+                                         processed As String, Program As String) As Task
+        ' === ADD LOCKING HERE ===
+        LockDatabase() ' 🔒 Lock only during the actual database save
+
         Try
             Using connection As New SqlConnection(conString)
                 Using command As New SqlCommand("sp_attendance", connection)
@@ -109,6 +198,7 @@ Public Class FormAttendanceInOut
                     command.Parameters.AddWithValue("@type", type)
                     command.Parameters.AddWithValue("@contactN", contactN)
                     command.Parameters.AddWithValue("@processed", processed)
+                    command.Parameters.AddWithValue("@program", Program)
 
                     Await connection.OpenAsync()
                     Await command.ExecuteNonQueryAsync()
@@ -123,12 +213,18 @@ Public Class FormAttendanceInOut
             End If
         Catch ex As Exception
             Debug.WriteLine($"Attendance error: {ex.Message}")
+        Finally
+            ' === ADD UNLOCKING HERE ===
+            UnlockDatabase() ' 🔓 Unlock immediately after database operation
         End Try
     End Function
 
     Private Sub BConnection_Click(sender As Object, e As EventArgs) Handles bConnection.Click
         If _formConn Is Nothing OrElse _formConn.IsDisposed Then
             _formConn = New FormConnection()
+
+            ' Set the reference for mode checking
+            _formConn.FormAttendanceInOutInstance = Me
 
             ' Register handlers
             AddHandler _formConn.StudentScannedGate1, AddressOf HandleGate1
@@ -174,4 +270,24 @@ Public Class FormAttendanceInOut
         FormConnectionClosed(Nothing, Nothing)
         MyBase.OnFormClosing(e)
     End Sub
+
+    ' Database locking methods for SMS app coordination
+    Private Sub LockDatabase()
+        Try
+            File.WriteAllText(BUSY_FLAG_FILE, DateTime.Now.ToString("HH:mm:ss"))
+        Catch
+            ' Ignore errors - don't stop the application if file operations fail
+        End Try
+    End Sub
+
+    Private Sub UnlockDatabase()
+        Try
+            If File.Exists(BUSY_FLAG_FILE) Then
+                File.Delete(BUSY_FLAG_FILE)
+            End If
+        Catch
+            ' Ignore errors
+        End Try
+    End Sub
+
 End Class

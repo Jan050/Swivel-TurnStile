@@ -1,4 +1,4 @@
-﻿Imports System.Data.SqlClient
+Imports System.Data.SqlClient
 Imports System.Configuration
 Imports System.IO
 Imports System.Net
@@ -6,8 +6,6 @@ Imports System.Net.Sockets
 Imports System.Text
 Imports System.Threading
 Imports System.Net.NetworkInformation
-Imports System.Collections.Concurrent
-Imports System.Threading.Tasks
 
 Public Class FormConnection
 
@@ -34,7 +32,7 @@ Public Class FormConnection
 
     Private _formAttendanceInOutInstance As FormAttendanceInOut
 
-    ' Client info with thread-safe processing flag
+    ' Client info
     Private Class ClientInfo
         Public Property Client As TcpClient
         Public Property IPAddress As String
@@ -44,7 +42,6 @@ Public Class FormConnection
         Public Property Stream As NetworkStream
         Public Property LastProcessedCard As String = ""
         Public Property LastProcessedTime As DateTime = DateTime.MinValue
-        Public Property IsProcessing As Boolean = False ' Prevent concurrent processing
 
         Public Sub New(client As TcpClient, port As Integer)
             Me.Client = client
@@ -56,9 +53,9 @@ Public Class FormConnection
         End Sub
     End Class
 
-    ' Database with thread-safe caching
+    ' Database
     Private ReadOnly conString As String = ConfigurationManager.ConnectionStrings("Swivel_TurnStile.My.MySettings.MyDataBaseConnectionString").ConnectionString
-    Private studentCache As New ConcurrentDictionary(Of String, StudentRecord)()
+    Private studentCache As New Dictionary(Of String, StudentRecord)() ' Optional memory cache
 
     ' Events
     Public Event StudentScannedGate1 As EventHandler(Of StudentRecord)
@@ -66,21 +63,10 @@ Public Class FormConnection
     Public Event StudentScannedGate3 As EventHandler(Of StudentRecord)
     Public Event StudentScannedGate4 As EventHandler(Of StudentRecord)
 
-    ' UI update optimization
-    Private uiUpdateQueue As New ConcurrentQueue(Of Action)()
-    Private uiUpdateTimer As Timer
+    ' Track if form is disposed - use a different name to avoid conflict
     Private formIsDisposed As Boolean = False
 
-    ' Processing result structure (replaces tuples)
-    Private Class ProcessingResult
-        Public Property ShouldProcess As Boolean
-        Public Property ShouldActivateRelay As Boolean
-    End Class
-
     Private Sub FormConnection_Load(sender As Object, e As EventArgs) Handles MyBase.Load
-        ' Initialize UI update timer
-        uiUpdateTimer = New Timer(AddressOf ProcessUIUpdates, Nothing, 50, 100)
-
         ' Initialize the client list displays
         lbConnectedClients10001.Text = "Connected Clients (10001): 0"
         lbConnectedClients10002.Text = "Connected Clients (10002): 0"
@@ -93,60 +79,6 @@ Public Class FormConnection
         StartServer()
     End Sub
 
-    ' ================= UI UPDATE OPTIMIZATION =================
-    Private Sub ProcessUIUpdates(state As Object)
-        If formIsDisposed Then Return
-
-        Dim actions As New List(Of Action)()
-        Dim action As Action = Nothing
-
-        ' Dequeue up to 10 actions at once to prevent UI flooding
-        For i As Integer = 1 To 10
-            If uiUpdateQueue.TryDequeue(action) Then
-                actions.Add(action)
-            Else
-                Exit For
-            End If
-        Next
-
-        If actions.Count > 0 Then
-            BatchUpdateUI(actions)
-        End If
-    End Sub
-
-    Private Sub BatchUpdateUI(actions As List(Of Action))
-        If formIsDisposed Then Return
-
-        If InvokeRequired Then
-            Try
-                Invoke(New Action(Of List(Of Action))(AddressOf BatchUpdateUI), actions)
-            Catch ex As Exception
-                Debug.WriteLine($"Batch UI update invoke error: {ex.Message}")
-            End Try
-            Return
-        End If
-
-        Try
-            SuspendLayout()
-            For Each action In actions
-                Try
-                    action()
-                Catch ex As Exception
-                    Debug.WriteLine($"UI action error: {ex.Message}")
-                End Try
-            Next
-            ResumeLayout()
-        Catch ex As Exception
-            Debug.WriteLine($"Batch UI update error: {ex.Message}")
-        End Try
-    End Sub
-
-    Private Sub QueueUIUpdate(action As Action)
-        If formIsDisposed Then Return
-        uiUpdateQueue.Enqueue(action)
-    End Sub
-
-    ' ================= NETWORK MONITORING =================
     Private Sub MonitorNetworkChanges()
         AddHandler NetworkChange.NetworkAddressChanged, AddressOf OnNetworkAddressChanged
         AddHandler NetworkChange.NetworkAvailabilityChanged, AddressOf OnNetworkAvailabilityChanged
@@ -204,24 +136,24 @@ Public Class FormConnection
         CloseAllClientConnections(clients10001)
         CloseAllClientConnections(clients10002)
 
-        QueueUIUpdate(Sub()
-                          lbConnectedClients10001.Text = "Connected Clients (10001): 0"
-                          lbConnectedClients10002.Text = "Connected Clients (10002): 0"
-                          lstClients10001.Items.Clear()
-                          lstClients10002.Items.Clear()
-                      End Sub)
+        UpdateUI(Sub()
+                     lbConnectedClients10001.Text = "Connected Clients (10001): 0"
+                     lbConnectedClients10002.Text = "Connected Clients (10002): 0"
+                     lstClients10001.Items.Clear()
+                     lstClients10002.Items.Clear()
+                 End Sub)
     End Sub
 
-    ' ================= SERVER MANAGEMENT =================
+    ' ================= Start Server =================
     Private Sub StartServer()
         Try
-            ' Start server on port 10002
+            ' Start server on port 8080
             tcpListener10002 = New TcpListener(IPAddress.Any, 10002)
             serverThread10002 = New Thread(AddressOf ListenForClients10002)
             serverThread10002.IsBackground = True
             serverThread10002.Start()
 
-            ' Start server on port 10001
+            ' Start server on port 7070
             tcpListener10001 = New TcpListener(IPAddress.Any, 10001)
             serverThread10001 = New Thread(AddressOf ListenForClients10001)
             serverThread10001.IsBackground = True
@@ -229,12 +161,12 @@ Public Class FormConnection
 
             isServerRunning = True
 
-            QueueUIUpdate(Sub()
-                              If Not formIsDisposed Then
-                                  lbServerStatus.Text = "Server Status: Running (10002 & 10001)"
-                                  lbServerStatus.ForeColor = Color.Green
-                              End If
-                          End Sub)
+            UpdateUI(Sub()
+                         If Not formIsDisposed Then
+                             lbServerStatus.Text = "Server Status: Running (10002 & 10001)"
+                             lbServerStatus.ForeColor = Color.Green
+                         End If
+                     End Sub)
         Catch ex As Exception
             MessageBox.Show($"Failed to start server: {ex.Message}")
         End Try
@@ -258,16 +190,16 @@ Public Class FormConnection
         ' Wait a moment for threads to terminate
         Thread.Sleep(100)
 
-        QueueUIUpdate(Sub()
-                          If Not formIsDisposed Then
-                              lbServerStatus.Text = "Server Status: Stopped"
-                              lbServerStatus.ForeColor = Color.Red
-                              lbConnectedClients10001.Text = "Connected Clients (10001): 0"
-                              lbConnectedClients10002.Text = "Connected Clients (10002): 0"
-                              lstClients10001.Items.Clear()
-                              lstClients10002.Items.Clear()
-                          End If
-                      End Sub)
+        UpdateUI(Sub()
+                     If Not formIsDisposed Then
+                         lbServerStatus.Text = "Server Status: Stopped"
+                         lbServerStatus.ForeColor = Color.Red
+                         lbConnectedClients10001.Text = "Connected Clients (10001): 0"
+                         lbConnectedClients10002.Text = "Connected Clients (10002): 0"
+                         lstClients10001.Items.Clear()
+                         lstClients10002.Items.Clear()
+                     End If
+                 End Sub)
     End Sub
 
     Private Sub CloseAllClientConnections(clientList As List(Of ClientInfo))
@@ -287,7 +219,7 @@ Public Class FormConnection
         clientList.Clear()
     End Sub
 
-    ' ================= CLIENT LISTENERS =================
+    ' ================= Listen for clients on port 8080 =================
     Private Sub ListenForClients10002()
         Try
             tcpListener10002.Start()
@@ -300,12 +232,12 @@ Public Class FormConnection
                         Dim t As New Thread(Sub() HandleClient(clientInfo))
                         t.IsBackground = True
                         t.Start()
-                        QueueUIUpdate(Sub()
-                                          If Not formIsDisposed Then
-                                              lbConnectedClients10002.Text = $"Connected Clients (10002): {clients10002.Count}"
-                                              UpdateClientList10002()
-                                          End If
-                                      End Sub)
+                        UpdateUI(Sub()
+                                     If Not formIsDisposed Then
+                                         lbConnectedClients10002.Text = $"Connected Clients (10002): {clients10002.Count}"
+                                         UpdateClientList10002()
+                                     End If
+                                 End Sub)
                     End If
                     Thread.Sleep(50)
                 Catch ex As Exception When isServerRunning
@@ -324,6 +256,22 @@ Public Class FormConnection
         End Try
     End Sub
 
+    ' ================= Update Client List for Port 8080 =================
+    Private Sub UpdateClientList10002()
+        If formIsDisposed Then Return
+
+        UpdateUI(Sub()
+                     If Not formIsDisposed Then
+                         lstClients10002.Items.Clear()
+                         For Each clientInfo In clients10002
+                             Dim status = If(clientInfo.Client.Connected, "Connected", "Disconnected")
+                             lstClients10002.Items.Add($"{clientInfo.IPAddress} - {status}")
+                         Next
+                     End If
+                 End Sub)
+    End Sub
+
+    ' ================= Listen for clients on port 7070 =================
     Private Sub ListenForClients10001()
         Try
             tcpListener10001.Start()
@@ -336,12 +284,12 @@ Public Class FormConnection
                         Dim t As New Thread(Sub() HandleClient(clientInfo))
                         t.IsBackground = True
                         t.Start()
-                        QueueUIUpdate(Sub()
-                                          If Not formIsDisposed Then
-                                              lbConnectedClients10001.Text = $"Connected Clients (10001): {clients10001.Count}"
-                                              UpdateClientList10001()
-                                          End If
-                                      End Sub)
+                        UpdateUI(Sub()
+                                     If Not formIsDisposed Then
+                                         lbConnectedClients10001.Text = $"Connected Clients (10001): {clients10001.Count}"
+                                         UpdateClientList10001()
+                                     End If
+                                 End Sub)
                     End If
                     Thread.Sleep(50)
                 Catch ex As Exception When isServerRunning
@@ -360,47 +308,34 @@ Public Class FormConnection
         End Try
     End Sub
 
-    ' ================= CLIENT LIST MANAGEMENT =================
-    Private Sub UpdateClientList10002()
-        If formIsDisposed Then Return
-
-        QueueUIUpdate(Sub()
-                          If Not formIsDisposed Then
-                              lstClients10002.BeginUpdate()
-                              lstClients10002.Items.Clear()
-                              For Each clientInfo In clients10002
-                                  Dim status = If(clientInfo.Client.Connected, "Connected", "Disconnected")
-                                  lstClients10002.Items.Add($"{clientInfo.IPAddress} - {status}")
-                              Next
-                              lstClients10002.EndUpdate()
-                          End If
-                      End Sub)
-    End Sub
-
+    ' ================= Update Client List for Port 7070 =================
     Private Sub UpdateClientList10001()
         If formIsDisposed Then Return
 
-        QueueUIUpdate(Sub()
-                          If Not formIsDisposed Then
-                              lstClients10001.BeginUpdate()
-                              lstClients10001.Items.Clear()
-                              For Each clientInfo In clients10001
-                                  Dim status = If(clientInfo.Client.Connected, "Connected", "Disconnected")
-                                  lstClients10001.Items.Add($"{clientInfo.IPAddress} - {status}")
-                              Next
-                              lstClients10001.EndUpdate()
-                          End If
-                      End Sub)
+        UpdateUI(Sub()
+                     If Not formIsDisposed Then
+                         lstClients10001.Items.Clear()
+                         For Each clientInfo In clients10001
+                             Dim status = If(clientInfo.Client.Connected, "Connected", "Disconnected")
+                             lstClients10001.Items.Add($"{clientInfo.IPAddress} - {status}")
+                         Next
+                     End If
+                 End Sub)
     End Sub
 
-    ' ================= CLIENT HANDLING =================
+
+    ' ================= Handle Client =================
     Private Sub HandleClient(clientInfo As ClientInfo)
         Try
             ' Send welcome with port information
             clientInfo.Writer.WriteLine($"HELLO:{clientInfo.IPAddress}:{clientInfo.Port}")
 
             ' Update client list immediately after connection
-            QueueUIUpdate(Sub() UpdateClientList(clientInfo.Port))
+            If clientInfo.Port = 10001 Then
+                UpdateClientList10001()
+            ElseIf clientInfo.Port = 10002 Then
+                UpdateClientList10002()
+            End If
 
             While clientInfo.Client.Connected AndAlso isServerRunning
                 Try
@@ -412,6 +347,13 @@ Public Class FormConnection
                         message = message.Trim()
                         If message <> "" Then
                             ProcessClientMessage(message, clientInfo)
+
+                            ' Update client status after processing message
+                            If clientInfo.Port = 10001 Then
+                                UpdateClientList10001()
+                            ElseIf clientInfo.Port = 10002 Then
+                                UpdateClientList10002()
+                            End If
                         End If
                     Else
                         ' Small delay to prevent CPU spinning
@@ -433,14 +375,6 @@ Public Class FormConnection
         End Try
     End Sub
 
-    Private Sub UpdateClientList(port As Integer)
-        If port = 10001 Then
-            UpdateClientList10001()
-        ElseIf port = 10002 Then
-            UpdateClientList10002()
-        End If
-    End Sub
-
     Private Sub RemoveClient(clientInfo As ClientInfo)
         Try
             ' Close streams and client first
@@ -460,20 +394,20 @@ Public Class FormConnection
             ' Remove from appropriate client list
             If clientInfo.Port = 10002 Then
                 clients10002.Remove(clientInfo)
-                QueueUIUpdate(Sub()
-                                  If Not formIsDisposed Then
-                                      lbConnectedClients10002.Text = $"Connected Clients (10002): {clients10002.Count}"
-                                      UpdateClientList10002()
-                                  End If
-                              End Sub)
+                UpdateUI(Sub()
+                             If Not formIsDisposed Then
+                                 lbConnectedClients10002.Text = $"Connected Clients (10002): {clients10002.Count}"
+                                 UpdateClientList10002()
+                             End If
+                         End Sub)
             ElseIf clientInfo.Port = 10001 Then
                 clients10001.Remove(clientInfo)
-                QueueUIUpdate(Sub()
-                                  If Not formIsDisposed Then
-                                      lbConnectedClients10001.Text = $"Connected Clients (10001): {clients10001.Count}"
-                                      UpdateClientList10001()
-                                  End If
-                              End Sub)
+                UpdateUI(Sub()
+                             If Not formIsDisposed Then
+                                 lbConnectedClients10001.Text = $"Connected Clients (10001): {clients10001.Count}"
+                                 UpdateClientList10001()
+                             End If
+                         End Sub)
             End If
 
         Catch ex As Exception
@@ -481,7 +415,7 @@ Public Class FormConnection
         End Try
     End Sub
 
-    ' ================= MESSAGE PROCESSING =================
+    ' ================= Process Client Message =================
     Private Sub ProcessClientMessage(message As String, clientInfo As ClientInfo)
         Try
             If message = "PING" Then
@@ -504,8 +438,8 @@ Public Class FormConnection
                     clientInfo.LastProcessedCard = cardUID
                     clientInfo.LastProcessedTime = DateTime.Now
 
-                    ' Process immediately with client information (ASYNC)
-                    Task.Run(Sub() ProcessRFIDScanAsync(readerNumber, cardUID, clientInfo))
+                    ' Process immediately with client information
+                    ProcessRFIDScan(readerNumber, cardUID, clientInfo)
                 End If
             End If
         Catch ex As Exception
@@ -513,199 +447,168 @@ Public Class FormConnection
         End Try
     End Sub
 
-    ' ================= OPTIMIZED RFID PROCESSING =================
-    Private Async Sub ProcessRFIDScanAsync(readerNumber As Integer, cardUID As String, clientInfo As ClientInfo)
-        ' Prevent concurrent processing for same client
-        If clientInfo.IsProcessing Then
-            Debug.WriteLine($"Skipping duplicate processing for client {clientInfo.IPAddress}")
-            Return
-        End If
-
-        clientInfo.IsProcessing = True
-
+    ' ================= Process RFID =================
+    ' ================= Process RFID =================
+    ' ================= Process RFID =================
+    Private Sub ProcessRFIDScan(readerNumber As Integer, cardUID As String, clientInfo As ClientInfo)
         Try
-            ' Load student record asynchronously to avoid blocking
-            Dim student As StudentRecord = Await Task.Run(Function() GetStudentRecord(cardUID))
+            Dim student As StudentRecord = Nothing
+
+            ' Check cache first
+            If studentCache.ContainsKey(cardUID) Then
+                student = studentCache(cardUID)
+            Else
+                ' DB lookup
+                student = LoadStudent(cardUID)
+                If student IsNot Nothing Then studentCache(cardUID) = student
+            End If
 
             If student IsNot Nothing Then
-                ' Process student scan asynchronously
-                Await ProcessStudentScanAsync(student, readerNumber, cardUID, clientInfo)
+                ' Determine IN/OUT based on reader number (fixed designation)
+                ' Reader 1 = IN, Reader 2 = OUT, Reader 3 = IN, Reader 4 = OUT
+                Dim inOutStatus As String = ""
+                Select Case readerNumber
+                    Case 1, 3
+                        inOutStatus = "IN"
+                    Case 2, 4
+                        inOutStatus = "OUT"
+                End Select
+
+                ' Update UI based on port and reader number
+                UpdateUI(Sub()
+                             If Not formIsDisposed Then
+                                 ' Port 7070 = Gate 1
+                                 If clientInfo.Port = 10001 Then
+                                     Select Case readerNumber
+                                         Case 1 : tbUDIGate1IN.Text = $"IN: {cardUID} (from {clientInfo.IPAddress})"
+                                         Case 2 : tbUDIGate1OUT.Text = $"OUT: {cardUID} (from {clientInfo.IPAddress})"
+                                         Case Else
+                                             Debug.WriteLine($"Port 10001: Ignoring unknown reader number {readerNumber}")
+                                     End Select
+                                     ' Port 8080 = Gate 2
+                                 ElseIf clientInfo.Port = 10002 Then
+                                     Select Case readerNumber
+                                         Case 1 : tbUDIGate2IN.Text = $"IN: {cardUID} (from {clientInfo.IPAddress})"
+                                         Case 2 : tbUDIGate2OUT.Text = $"OUT: {cardUID} (from {clientInfo.IPAddress})"
+                                         Case Else
+                                             Debug.WriteLine($"Port 10002: Ignoring unknown reader number {readerNumber}")
+                                     End Select
+                                 Else
+                                     Debug.WriteLine($"Unknown port {clientInfo.Port}: Ignoring reader number {readerNumber}")
+                                 End If
+                             End If
+                         End Sub)
+
+                ' Check if this scan should be processed based on current mode
+                Dim shouldProcess As Boolean = False
+                Dim shouldActivateRelay As Boolean = False
+
+                ' Port 7070 = Gate 1
+                If clientInfo.Port = 10001 Then
+                    Select Case readerNumber
+                        Case 1 ' Reader 1 (IN)
+                            ' Only process if Gate1 mode allows IN
+                            If FormAttendanceInOutInstance IsNot Nothing AndAlso
+                           (FormAttendanceInOutInstance.CurrentGate1Mode = "IN" OrElse
+                            FormAttendanceInOutInstance.CurrentGate1Mode = "IN/OUT") Then
+                                shouldProcess = True
+                                shouldActivateRelay = True
+                                RaiseEvent StudentScannedGate1(Me, student)
+                            Else
+                                Debug.WriteLine("Gate 1 IN scan filtered - current mode: " & FormAttendanceInOutInstance.CurrentGate1Mode)
+                            End If
+
+                        Case 2 ' Reader 2 (OUT)
+                            ' Only process if Gate1 mode allows OUT
+                            If FormAttendanceInOutInstance IsNot Nothing AndAlso
+                           (FormAttendanceInOutInstance.CurrentGate1Mode = "OUT" OrElse
+                            FormAttendanceInOutInstance.CurrentGate1Mode = "IN/OUT") Then
+                                shouldProcess = True
+                                shouldActivateRelay = True
+                                RaiseEvent StudentScannedGate2(Me, student)
+                            Else
+                                Debug.WriteLine("Gate 1 OUT scan filtered - current mode: " & FormAttendanceInOutInstance.CurrentGate1Mode)
+                            End If
+                    End Select
+
+                    ' Port 8080 = Gate 2
+                ElseIf clientInfo.Port = 10002 Then
+                    Select Case readerNumber
+                        Case 1 ' Reader 3 (IN)
+                            ' Only process if Gate2 mode allows IN
+                            If FormAttendanceInOutInstance IsNot Nothing AndAlso
+                           (FormAttendanceInOutInstance.CurrentGate2Mode = "IN" OrElse
+                            FormAttendanceInOutInstance.CurrentGate2Mode = "IN/OUT") Then
+                                shouldProcess = True
+                                shouldActivateRelay = True
+                                RaiseEvent StudentScannedGate3(Me, student)
+                            Else
+                                Debug.WriteLine("Gate 2 IN scan filtered - current mode: " & FormAttendanceInOutInstance.CurrentGate2Mode)
+                            End If
+
+                        Case 2 ' Reader 4 (OUT)
+                            ' Only process if Gate2 mode allows OUT
+                            If FormAttendanceInOutInstance IsNot Nothing AndAlso
+                           (FormAttendanceInOutInstance.CurrentGate2Mode = "OUT" OrElse
+                            FormAttendanceInOutInstance.CurrentGate2Mode = "IN/OUT") Then
+                                shouldProcess = True
+                                shouldActivateRelay = True
+                                RaiseEvent StudentScannedGate4(Me, student)
+                            Else
+                                Debug.WriteLine("Gate 2 OUT scan filtered - current mode: " & FormAttendanceInOutInstance.CurrentGate2Mode)
+                            End If
+                    End Select
+                End If
+
+                ' Send response to client based on filtering
+                If shouldProcess AndAlso shouldActivateRelay Then
+                    ' Approve card - send back the same reader number
+                    clientInfo.Writer.WriteLine($"OK{readerNumber}")
+                    Debug.WriteLine($"Approved scan - Reader {readerNumber}, Card: {cardUID}")
+                ElseIf shouldProcess Then
+                    ' Process for database but don't activate relay
+                    ' This case shouldn't happen with current logic, but kept for safety
+                    clientInfo.Writer.WriteLine($"OK{readerNumber}")
+                Else
+                    ' Reject card - don't send OK response
+                    clientInfo.Writer.WriteLine("REJECTED_MODE")
+                    Debug.WriteLine($"Rejected scan - Reader {readerNumber}, Card: {cardUID}, Mode filter active")
+                End If
+
             Else
                 clientInfo.Writer.WriteLine("UNKNOWN_CARD")
             End If
         Catch ex As Exception
-            Debug.WriteLine($"Error processing RFID scan: {ex.Message}")
-        Finally
-            clientInfo.IsProcessing = False
+            Debug.WriteLine($"Error processing RFID scan on port {clientInfo.Port}: {ex.Message}")
         End Try
     End Sub
 
-    ' Async student processing
-    Private Async Function ProcessStudentScanAsync(student As StudentRecord, readerNumber As Integer,
-                                                  cardUID As String, clientInfo As ClientInfo) As Task
-        ' Determine IN/OUT status
-        Dim inOutStatus As String = If(readerNumber = 1 OrElse readerNumber = 3, "IN", "OUT")
-
-        ' Queue UI update (non-blocking) - STUDENT SEES THIS INSTANTLY!
-        QueueUIUpdate(Sub() UpdateScanDisplay(readerNumber, cardUID, clientInfo, inOutStatus))
-
-        ' Check if scan should be processed based on mode
-        Dim processingResult = DetermineProcessingRules(clientInfo.Port, readerNumber)
-        Dim shouldProcess As Boolean = processingResult.ShouldProcess
-        Dim shouldActivateRelay As Boolean = processingResult.ShouldActivateRelay
-
-        If shouldProcess AndAlso shouldActivateRelay Then
-            ' Send immediate response - GATE OPENS INSTANTLY!
-            clientInfo.Writer.WriteLine($"OK{readerNumber}")
-
-            ' Raise event on background thread (doesn't block student)
-            Await Task.Run(Sub() RaiseStudentEvent(clientInfo.Port, readerNumber, student))
-
-            Debug.WriteLine($"Approved scan - Reader {readerNumber}, Card: {cardUID}")
-        ElseIf shouldProcess Then
-            clientInfo.Writer.WriteLine($"OK{readerNumber}")
-        Else
-            clientInfo.Writer.WriteLine("REJECTED_MODE")
-            Debug.WriteLine($"Rejected scan - Reader {readerNumber}, Card: {cardUID}, Mode filter active")
-        End If
-    End Function
-
-    Private Function DetermineProcessingRules(port As Integer, readerNumber As Integer) As ProcessingResult
-        Dim result As New ProcessingResult()
-
-        If FormAttendanceInOutInstance Is Nothing Then
-            result.ShouldProcess = False
-            result.ShouldActivateRelay = False
-            Return result
-        End If
-
-        Select Case port
-            Case 10001 ' Gate 1
-                Select Case readerNumber
-                    Case 1 ' IN
-                        result.ShouldProcess = (FormAttendanceInOutInstance.CurrentGate1Mode = "IN" OrElse
-                                              FormAttendanceInOutInstance.CurrentGate1Mode = "IN/OUT")
-                        result.ShouldActivateRelay = True
-                    Case 2 ' OUT
-                        result.ShouldProcess = (FormAttendanceInOutInstance.CurrentGate1Mode = "OUT" OrElse
-                                              FormAttendanceInOutInstance.CurrentGate1Mode = "IN/OUT")
-                        result.ShouldActivateRelay = True
-                    Case Else
-                        result.ShouldProcess = False
-                        result.ShouldActivateRelay = False
-                End Select
-            Case 10002 ' Gate 2
-                Select Case readerNumber
-                    Case 1 ' IN
-                        result.ShouldProcess = (FormAttendanceInOutInstance.CurrentGate2Mode = "IN" OrElse
-                                              FormAttendanceInOutInstance.CurrentGate2Mode = "IN/OUT")
-                        result.ShouldActivateRelay = True
-                    Case 2 ' OUT
-                        result.ShouldProcess = (FormAttendanceInOutInstance.CurrentGate2Mode = "OUT" OrElse
-                                              FormAttendanceInOutInstance.CurrentGate2Mode = "IN/OUT")
-                        result.ShouldActivateRelay = True
-                    Case Else
-                        result.ShouldProcess = False
-                        result.ShouldActivateRelay = False
-                End Select
-            Case Else
-                result.ShouldProcess = False
-                result.ShouldActivateRelay = False
-        End Select
-
-        Return result
-    End Function
-
-    ' Optimized UI display update
-    Private Sub UpdateScanDisplay(readerNumber As Integer, cardUID As String,
-                                 clientInfo As ClientInfo, inOutStatus As String)
-        If formIsDisposed Then Return
-
-        Dim displayText = $"{inOutStatus}: {cardUID} (from {clientInfo.IPAddress})"
-
-        Select Case clientInfo.Port
-            Case 10001 ' Gate 1
-                Select Case readerNumber
-                    Case 1
-                        tbUDIGate1IN.Text = displayText
-                    Case 2
-                        tbUDIGate1OUT.Text = displayText
-                End Select
-            Case 10002 ' Gate 2
-                Select Case readerNumber
-                    Case 1
-                        tbUDIGate2IN.Text = displayText
-                    Case 2
-                        tbUDIGate2OUT.Text = displayText
-                End Select
-        End Select
-    End Sub
-
-    ' Raise events on background thread
-    Private Sub RaiseStudentEvent(port As Integer, readerNumber As Integer, student As StudentRecord)
-        Try
-            Select Case port
-                Case 10001
-                    Select Case readerNumber
-                        Case 1
-                            RaiseEvent StudentScannedGate1(Me, student)
-                        Case 2
-                            RaiseEvent StudentScannedGate2(Me, student)
-                    End Select
-                Case 10002
-                    Select Case readerNumber
-                        Case 1
-                            RaiseEvent StudentScannedGate3(Me, student)
-                        Case 2
-                            RaiseEvent StudentScannedGate4(Me, student)
-                    End Select
-            End Select
-        Catch ex As Exception
-            Debug.WriteLine($"Error raising student event: {ex.Message}")
-        End Try
-    End Sub
-
-    ' ================= OPTIMIZED STUDENT DATA ACCESS =================
-    Private Function GetStudentRecord(rfid As String) As StudentRecord
-        ' Check cache first (thread-safe)
-        Dim cachedStudent As StudentRecord = Nothing
-        If studentCache.TryGetValue(rfid, cachedStudent) Then
-            Return cachedStudent
-        End If
-
-        ' Database lookup with optimized query
+    ' ================= Load Student from DB =================
+    Private Function LoadStudent(rfid As String) As StudentRecord
         Try
             Using con As New SqlConnection(conString)
                 con.Open()
-
-                Dim query = "SELECT studId, FName, LName, Picture, Type, contactN, Program 
-                       FROM tblcombine WHERE rfid=@rfid"
-
+                Dim query = "SELECT studId, FName, LName, Picture, Type, contactN, Program FROM tblcombine WHERE rfid=@rfid"
                 Using cmd As New SqlCommand(query, con)
                     cmd.Parameters.AddWithValue("@rfid", rfid)
-
                     Using reader = cmd.ExecuteReader()
                         If reader.Read() Then
                             Dim student As New StudentRecord With {
-                            .RFID = rfid,
-                            .StudId = reader("studId").ToString(),
-                            .FullName = $"{reader("LName")}, {reader("FName")}",
-                            .Type = reader("Type").ToString(),
-                            .ContactN = reader("contactN").ToString(),
-                            .Program = reader("Program").ToString()
-                        }
-
+                                .RFID = rfid,
+                                .StudId = reader("studId").ToString(),
+                                .FullName = $"{reader("LName")}, {reader("FName")}",
+                                .Type = reader("Type").ToString(),
+                                .ContactN = reader("contactN").ToString(),
+                                .Program = reader("Program").ToString()
+                            }
 
                             Dim imageBytes = If(IsDBNull(reader("Picture")), Nothing, CType(reader("Picture"), Byte()))
                             If imageBytes IsNot Nothing Then
                                 Using ms As New MemoryStream(imageBytes)
                                     student.Picture = Image.FromStream(ms)
-                                    'student.Picture = New Bitmap(student.Picture) ' 🎯 CRITICAL!
+                                    student.Picture = New Bitmap(student.Picture)
                                 End Using
                             End If
-
-                            ' Cache the result
-                            studentCache.TryAdd(rfid, student)
                             Return student
                         End If
                     End Using
@@ -714,20 +617,41 @@ Public Class FormConnection
         Catch ex As Exception
             Debug.WriteLine($"Error loading student: {ex.Message}")
         End Try
-
         Return Nothing
     End Function
 
-    ' ================= CLEANUP =================
+    ' ================= Thread-safe UI Update =================
+    Private Sub UpdateUI(action As Action)
+        If formIsDisposed Then Return
+
+        If InvokeRequired Then
+            Try
+                If Not formIsDisposed AndAlso IsHandleCreated AndAlso Not IsDisposed Then
+                    Invoke(New MethodInvoker(Sub()
+                                                 If Not formIsDisposed AndAlso Not IsDisposed Then
+                                                     action()
+                                                 End If
+                                             End Sub))
+                End If
+            Catch ex As ObjectDisposedException
+                formIsDisposed = True
+            Catch ex As InvalidOperationException
+                formIsDisposed = True
+            Catch ex As Exception
+                Debug.WriteLine($"Error in UI update: {ex.Message}")
+            End Try
+        Else
+            If Not formIsDisposed AndAlso Not IsDisposed Then
+                action()
+            End If
+        End If
+    End Sub
+
     Protected Overrides Sub OnFormClosing(e As FormClosingEventArgs)
+        ' Set flag first
         formIsDisposed = True
 
-        ' Clean up timer
-        If uiUpdateTimer IsNot Nothing Then
-            uiUpdateTimer.Dispose()
-        End If
-
-        ' Stop server
+        ' Stop server and clean up resources
         StopServer()
 
         ' Wait for server threads to finish
@@ -742,7 +666,7 @@ Public Class FormConnection
         MyBase.OnFormClosing(e)
     End Sub
 
-    ' ================= BUTTON EVENT HANDLERS =================
+    ' ================= Button Event Handlers =================
     Private Sub btnStartServer_Click(sender As Object, e As EventArgs) Handles btnStartServer.Click
         StartServer()
     End Sub
